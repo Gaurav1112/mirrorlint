@@ -85,6 +85,6 @@ public class PairMiner {
         // "missing" members are the whole point of it, and treating them as drift floods the
         // report. A literal list of names copied out of a type is what nothing checks.
         if (larger.kind() != ShapeKind.TRUTH || smaller.kind() != ShapeKind.LIST) return;
-        out.add(new Pair(larger, smaller, jaccard));
+        out.add(new Pair(larger, smaller, jaccard, true));
     }
 }

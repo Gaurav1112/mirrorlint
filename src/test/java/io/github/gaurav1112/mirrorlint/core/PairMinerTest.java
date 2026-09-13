@@ -20,6 +20,7 @@ class PairMinerTest {
         assertThat(pairs.get(0).truth().id()).isEqualTo("T");
         assertThat(pairs.get(0).mirror().id()).isEqualTo("M");
         assertThat(pairs.get(0).jaccard()).isBetween(0.79, 0.81); // 4/5
+        assertThat(pairs.get(0).subset()).isFalse(); // jaccard-mined: a twin, not a curation
     }
 
     @Test
@@ -44,6 +45,7 @@ class PairMinerTest {
         assertThat(pairs).hasSize(1);
         assertThat(pairs.get(0).truth().id()).isEqualTo("SerializedConfig");
         assertThat(pairs.get(0).mirror().id()).isEqualTo("OVERRIDES");
+        assertThat(pairs.get(0).subset()).isTrue(); // mined by containment, so tagged for the stricter gate
     }
 
     /**
