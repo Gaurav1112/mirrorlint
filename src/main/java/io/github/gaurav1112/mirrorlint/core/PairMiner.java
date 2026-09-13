@@ -3,7 +3,6 @@ package io.github.gaurav1112.mirrorlint.core;
 import io.github.gaurav1112.mirrorlint.config.Config;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -40,6 +39,15 @@ public class PairMiner {
         this.minSubsetJaccard = minSubsetJaccard;
     }
 
+    /**
+     * The containment floor a subset-mirror candidate must clear. Exposed so a caller building a
+     * manually declared {@code [[pairs]]} entry (which bypasses mining) can still classify it by
+     * the same containment test used here, instead of duplicating the threshold.
+     */
+    public double minContainment() {
+        return minContainment;
+    }
+
     public List<Pair> mine(List<Shape> shapes) {
         List<Pair> out = new ArrayList<>();
         for (int i = 0; i < shapes.size(); i++) {
@@ -55,13 +63,11 @@ public class PairMiner {
 
     private void consider(Shape a, Shape b, List<Pair> out) {
         Set<String> an = a.memberNames(), bn = b.memberNames();
-        Set<String> inter = new HashSet<>(an); inter.retainAll(bn);
-        Set<String> union = new HashSet<>(an); union.addAll(bn);
-        if (union.isEmpty() || inter.size() < minShared) return;
+        SetOverlap.Result overlap = SetOverlap.of(an, bn);
+        if (overlap.union() == 0 || overlap.intersection() < minShared) return;
 
-        double jaccard = (double) inter.size() / union.size();
-        int smallerSize = Math.min(an.size(), bn.size());
-        double containment = smallerSize == 0 ? 0.0 : (double) inter.size() / smallerSize;
+        double jaccard = overlap.jaccard();
+        double containment = overlap.containment();
 
         if (jaccard >= minJaccard) {
             boolean aTruth = a.kind() == ShapeKind.TRUTH, bTruth = b.kind() == ShapeKind.TRUTH;

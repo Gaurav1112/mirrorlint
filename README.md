@@ -75,9 +75,10 @@ co-occurs with the allowed options, and is correctly left alone.
 Subset mirrors need a second, sharper gate, because symmetric usage proves
 nothing about a list that omits most of its truth *on purpose*. An allowlist
 drawn from a config type omits options the codebase naturally uses wherever it
-uses the allowed ones — at the vitest receipt SHA all 41 omissions of
-`PROJECT_CLI_OVERRIDES` scored ≥ 0.94, so that signal is saturated and useless
-there. What isn't saturated: the module that *declares* the curation is the
+uses the allowed ones — at the vitest receipt SHA the 41 omissions of
+`PROJECT_CLI_OVERRIDES` had a median score of 0.944, and 19 of them scored a
+perfect 1.000: the real drift sits at the median, so ranking by score alone is
+inverted, not just saturated. What isn't saturated: the module that *declares* the curation is the
 authority on what belongs in it. So for a subset-mined pair an omission is
 drift only when the declaring file itself uses that member in the same
 statement as a member the mirror does list, and the member's score clears the

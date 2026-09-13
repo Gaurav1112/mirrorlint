@@ -18,12 +18,13 @@ import java.util.Set;
  * {@link #curatorTreatsItAsAPeer}. A twin's omissions are all suspicious by construction, so
  * symmetric usage is the whole question there. A subset mirror is a <em>curation</em>: it omits
  * most of its truth on purpose, so symmetric usage proves nothing on its own. Measured at the
- * vitest receipt SHA, every one of the 41 omissions of {@code PROJECT_CLI_OVERRIDES} scored
- * {@code >= 0.94} — an allowlist drawn from a config type is omitting options that the codebase
- * naturally uses wherever it uses the allowed ones. The signal has to be sharper than
- * co-occurrence-in-some-file, and it is: the module that <em>declares</em> the curation is the
- * authority on what belongs in it, so an omission is drift only when that module itself handles
- * the member in the same breath as a member it did list.
+ * vitest receipt SHA, the 41 omissions of {@code PROJECT_CLI_OVERRIDES} had a median score of
+ * 0.944, and 19 of them scored a perfect 1.000 — an allowlist drawn from a config type is
+ * omitting options that the codebase naturally uses wherever it uses the allowed ones, so the
+ * real drift sits at the median and ranking by score alone is inverted, not just saturated. The
+ * signal has to be sharper than co-occurrence-in-some-file, and it is: the module that
+ * <em>declares</em> the curation is the authority on what belongs in it, so an omission is drift
+ * only when that module itself handles the member in the same breath as a member it did list.
  */
 public class Verifier {
     private final double minScore;

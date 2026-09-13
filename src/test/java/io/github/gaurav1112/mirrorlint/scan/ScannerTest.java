@@ -1,5 +1,6 @@
 package io.github.gaurav1112.mirrorlint.scan;
 
+import io.github.gaurav1112.mirrorlint.config.Config;
 import io.github.gaurav1112.mirrorlint.core.*;
 import io.github.gaurav1112.mirrorlint.lang.*;
 import java.nio.file.Path;
@@ -131,5 +132,40 @@ class ScannerTest {
                 assertThat(f.severity()).isEqualTo(Severity.DEFAULT);
                 assertThat(f.omission()).isTrue();
             });
+    }
+
+    /**
+     * I2: a declared {@code [[pairs]]} entry bypasses the mining thresholds, but when the mirror
+     * is structurally a subset list (strictly smaller than the truth, containment over the
+     * configured floor, and a LIST-kind shape) it must still be tagged {@code subset=true} so the
+     * sharper subset discriminator applies — otherwise a user-declared allowlist floods findings
+     * the miner-path would have gated. `delta` is co-used with an allowed member on the same line
+     * inside the mirror's own declaring file (mirror.ts) and must read DEFAULT; `epsilon` clears
+     * the ordinary symmetric-usage score (it's used in other.ts alongside `alpha`) but is never
+     * touched by mirror.ts itself, so the subset gate must hold it at INFO.
+     */
+    @Test
+    void declaredSubsetPairIsTaggedSubsetAndGatedByTheDiscriminator() {
+        Config config = new Config(
+            Config.DEFAULT_MIN_JACCARD, Config.DEFAULT_MIN_SHARED, Config.DEFAULT_MIN_SCORE,
+            Config.DEFAULT_MIN_CONTAINMENT, Config.DEFAULT_MIN_SUBSET_JACCARD,
+            Config.DEFAULT_SUBSET_MIN_SCORE, Config.DEFAULT_SUBSET_PEER_WINDOW,
+            Config.DEFAULT_EXCLUDES,
+            List.of(new Config.DeclaredPair("truth.ts", "Config", "mirror.ts", "ALLOWED")));
+        Scanner scanner = new Scanner(List.of(new TypeScriptAdapter(), new JavaAdapter()), config);
+        var result = scanner.scan(Path.of("src/test/resources/fixtures/declared-subset"));
+
+        assertThat(result.findings())
+            .filteredOn(f -> Shape.normalize(f.member().name()).equals("delta"))
+            .hasSize(1)
+            .allSatisfy(f -> {
+                assertThat(f.pair().subset()).isTrue();
+                assertThat(f.severity()).isEqualTo(Severity.DEFAULT);
+            });
+
+        assertThat(result.findings())
+            .filteredOn(f -> Shape.normalize(f.member().name()).equals("epsilon"))
+            .hasSize(1)
+            .allSatisfy(f -> assertThat(f.severity()).isEqualTo(Severity.INFO));
     }
 }

@@ -134,4 +134,39 @@ class VerifierTest {
         assertThat(findings).filteredOn(f -> f.member().name().equals("hookTimeout"))
             .allMatch(f -> f.severity() == Severity.INFO);
     }
+
+    /**
+     * I3: "right line, wrong file". `teardownTimeout` shares a line with a mirror member
+     * (`tagsFilter`) — but in {@code runner.ts}, not {@code overrides.ts}, the mirror's own
+     * declaring file. Symmetric usage alone clears both the ordinary and raised score floors, so
+     * this must be held to INFO purely by the declaring-file restriction in
+     * {@code curatorTreatsItAsAPeer}. Verified (by hand, restored immediately after) that
+     * commenting out that file-equality check turns this into a DEFAULT finding — so this test is
+     * not vacuous, it is actually pinned on the restriction.
+     */
+    @Test
+    void subsetOmissionOnTheSameLineInADifferentFileIsInfo() {
+        var usages = List.of(
+            at("runner.ts", 10, "tagsFilter"), at("runner.ts", 10, "teardownTimeout"),
+            at("overrides.ts", 40, "tagsFilter"));
+        var findings = new Verifier(0.5).verify(subsetPair, new Differ().diff(subsetPair), usages);
+        var drift = findings.stream()
+            .filter(f -> f.member().name().equals("teardownTimeout")).findFirst().orElseThrow();
+        assertThat(drift.severity()).isEqualTo(Severity.INFO);
+    }
+
+    /**
+     * M5: {@code subset_peer_window} arrives from TOML as a plain {@code int} with no floor of
+     * its own (see {@code Config.load}) — a negative value is a config author typo, not a
+     * deliberate "narrower than same-line" request, which doesn't exist. The {@code Verifier}
+     * constructor clamps it to 0, so a negative window must behave identically to window 0: the
+     * neighbouring-line peer here must NOT be picked up.
+     */
+    @Test
+    void negativeSubsetPeerWindowClampsToZero() {
+        var usages = curatedUsages(41); // one line below the mirror member's usage
+        var findings = new Verifier(0.5, 0.8, -5).verify(subsetPair, new Differ().diff(subsetPair), usages);
+        assertThat(findings).filteredOn(f -> f.member().name().equals("teardownTimeout"))
+            .allMatch(f -> f.severity() == Severity.INFO);
+    }
 }

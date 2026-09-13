@@ -5,6 +5,7 @@ import io.github.gaurav1112.mirrorlint.core.Differ;
 import io.github.gaurav1112.mirrorlint.core.Finding;
 import io.github.gaurav1112.mirrorlint.core.Pair;
 import io.github.gaurav1112.mirrorlint.core.PairMiner;
+import io.github.gaurav1112.mirrorlint.core.SetOverlap;
 import io.github.gaurav1112.mirrorlint.core.Shape;
 import io.github.gaurav1112.mirrorlint.core.ShapeKind;
 import io.github.gaurav1112.mirrorlint.core.UsageSite;
@@ -192,7 +193,17 @@ public class Scanner {
                 .anyMatch(p -> p.truth().equals(truthShape) && p.mirror().equals(mirrorShape));
             if (alreadyMined) continue;
 
-            pairs.add(new Pair(truthShape, mirrorShape, jaccard(truthShape, mirrorShape)));
+            SetOverlap.Result overlap = SetOverlap.of(truthShape.memberNames(), mirrorShape.memberNames());
+            // A declared pair bypasses the mining thresholds entirely, but when its mirror is
+            // structurally a subset list (strictly smaller than the truth, containment over the
+            // configured floor, and LIST-kind — the same test PairMiner applies when mining one)
+            // it must be tagged subset=true too. Otherwise a user-declared allowlist pair floods
+            // findings the miner-path would have gated through the sharper subset discriminator.
+            boolean subset = mirrorShape.kind() == ShapeKind.LIST
+                && mirrorShape.memberNames().size() < truthShape.memberNames().size()
+                && overlap.containment() >= miner.minContainment();
+
+            pairs.add(new Pair(truthShape, mirrorShape, overlap.jaccard(), subset));
         }
     }
 
@@ -201,13 +212,6 @@ public class Scanner {
             if (shape.file().equals(file) && shape.id().equals(id)) return shape;
         }
         return null;
-    }
-
-    private double jaccard(Shape a, Shape b) {
-        Set<String> an = a.memberNames(), bn = b.memberNames();
-        Set<String> inter = new HashSet<>(an); inter.retainAll(bn);
-        Set<String> union = new HashSet<>(an); union.addAll(bn);
-        return union.isEmpty() ? 0.0 : (double) inter.size() / union.size();
     }
 
     private LanguageAdapter adapterFor(String relativePath) {
