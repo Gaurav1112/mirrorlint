@@ -25,6 +25,16 @@ class ScannerTest {
     }
 
     @Test
+    void scanningASingleFileDirectlyScansJustThatFile() {
+        Scanner scanner = new Scanner(
+            List.of(new TypeScriptAdapter(), new JavaAdapter()),
+            new PairMiner(0.6, 3), new Verifier(0.5),
+            List.of());
+        var result = scanner.scan(Path.of("src/test/resources/fixtures/mixed/overrides.ts"));
+        assertThat(result.filesScanned()).isEqualTo(1);
+    }
+
+    @Test
     void suppressesFindingWithInlineIgnoreComment() {
         Scanner scanner = new Scanner(
             List.of(new TypeScriptAdapter(), new JavaAdapter()),

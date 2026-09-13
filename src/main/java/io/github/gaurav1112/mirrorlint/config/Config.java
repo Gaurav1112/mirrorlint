@@ -37,10 +37,23 @@ public record Config(
             "**/test/**", "**/tests/**", "**/__tests__/**", "**/node_modules/**",
             "**/target/**", "**/build/**", "**/dist/**", "**/*.spec.*", "**/*.test.*");
 
-    /** Loads config from {@code tomlPath}, or returns all defaults when it is null or absent. */
+    /**
+     * Loads config from {@code tomlPath}, or returns all defaults when it is {@code null} (no
+     * {@code --config} flag given at all). A non-null path that doesn't exist is a user error —
+     * it throws {@link IllegalArgumentException} rather than silently falling back to defaults,
+     * so a typo'd {@code --config} path fails loudly instead of scanning with the wrong
+     * thresholds and reporting success.
+     *
+     * @throws IllegalArgumentException if {@code tomlPath} is non-null but doesn't exist, the
+     *     TOML is syntactically invalid, or a value has the wrong type (e.g. {@code min_jaccard}
+     *     given as an integer instead of a float)
+     */
     public static Config load(Path tomlPath) {
-        if (tomlPath == null || !Files.exists(tomlPath)) {
+        if (tomlPath == null) {
             return defaults();
+        }
+        if (!Files.exists(tomlPath)) {
+            throw new IllegalArgumentException("config file not found: " + tomlPath);
         }
 
         TomlParseResult result;
@@ -53,33 +66,43 @@ public record Config(
             throw new IllegalArgumentException("invalid TOML in " + tomlPath + ": " + result.errors());
         }
 
-        double minJaccard = result.contains("min_jaccard") ? result.getDouble("min_jaccard") : DEFAULT_MIN_JACCARD;
-        int minShared = result.contains("min_shared") ? result.getLong("min_shared").intValue() : DEFAULT_MIN_SHARED;
-        double minScore = result.contains("min_score") ? result.getDouble("min_score") : DEFAULT_MIN_SCORE;
-        double minContainment = result.contains("min_containment")
-                ? result.getDouble("min_containment") : DEFAULT_MIN_CONTAINMENT;
-        double minSubsetJaccard = result.contains("min_subset_jaccard")
-                ? result.getDouble("min_subset_jaccard") : DEFAULT_MIN_SUBSET_JACCARD;
+        try {
+            double minJaccard =
+                    result.contains("min_jaccard") ? result.getDouble("min_jaccard") : DEFAULT_MIN_JACCARD;
+            int minShared =
+                    result.contains("min_shared") ? result.getLong("min_shared").intValue() : DEFAULT_MIN_SHARED;
+            double minScore = result.contains("min_score") ? result.getDouble("min_score") : DEFAULT_MIN_SCORE;
+            double minContainment = result.contains("min_containment")
+                    ? result.getDouble("min_containment") : DEFAULT_MIN_CONTAINMENT;
+            double minSubsetJaccard = result.contains("min_subset_jaccard")
+                    ? result.getDouble("min_subset_jaccard") : DEFAULT_MIN_SUBSET_JACCARD;
 
-        List<String> excludes = new ArrayList<>(DEFAULT_EXCLUDES);
-        TomlArray excludesArray = result.getArrayOrEmpty("excludes");
-        for (int i = 0; i < excludesArray.size(); i++) {
-            excludes.add(excludesArray.getString(i));
+            List<String> excludes = new ArrayList<>(DEFAULT_EXCLUDES);
+            TomlArray excludesArray = result.getArrayOrEmpty("excludes");
+            for (int i = 0; i < excludesArray.size(); i++) {
+                excludes.add(excludesArray.getString(i));
+            }
+
+            List<DeclaredPair> declaredPairs = new ArrayList<>();
+            TomlArray pairsArray = result.getArrayOrEmpty("pairs");
+            for (int i = 0; i < pairsArray.size(); i++) {
+                TomlTable pairTable = pairsArray.getTable(i);
+                declaredPairs.add(new DeclaredPair(
+                        pairTable.getString("truth_file"),
+                        pairTable.getString("truth_id"),
+                        pairTable.getString("mirror_file"),
+                        pairTable.getString("mirror_id")));
+            }
+
+            return new Config(minJaccard, minShared, minScore, minContainment, minSubsetJaccard,
+                    List.copyOf(excludes), List.copyOf(declaredPairs));
+        } catch (RuntimeException e) {
+            // Catches org.tomlj.TomlInvalidTypeException (e.g. `min_jaccard = 1`, an integer
+            // where a float is required) and any other value-extraction failure, so every
+            // malformed-config path — syntax or type — surfaces as an IllegalArgumentException
+            // instead of an internal exception type escaping the load() contract.
+            throw new IllegalArgumentException("invalid value in " + tomlPath + ": " + e.getMessage(), e);
         }
-
-        List<DeclaredPair> declaredPairs = new ArrayList<>();
-        TomlArray pairsArray = result.getArrayOrEmpty("pairs");
-        for (int i = 0; i < pairsArray.size(); i++) {
-            TomlTable pairTable = pairsArray.getTable(i);
-            declaredPairs.add(new DeclaredPair(
-                    pairTable.getString("truth_file"),
-                    pairTable.getString("truth_id"),
-                    pairTable.getString("mirror_file"),
-                    pairTable.getString("mirror_id")));
-        }
-
-        return new Config(minJaccard, minShared, minScore, minContainment, minSubsetJaccard,
-                List.copyOf(excludes), List.copyOf(declaredPairs));
     }
 
     private static Config defaults() {

@@ -61,4 +61,41 @@ class MainTest {
 
         assertThat(exitCode).isEqualTo(2);
     }
+
+    @Test
+    void malformedTypeTomlConfigExitsTwoWithoutStackTrace(@TempDir Path tempDir) throws Exception {
+        // Syntactically valid TOML, but the wrong type: min_jaccard is a double field,
+        // and `1` parses as an integer, not a double. This used to throw
+        // org.tomlj.TomlInvalidTypeException (a RuntimeException, not an IllegalArgumentException)
+        // straight out of Main's catch, printing a raw stack trace and exiting 1.
+        Path badConfig = tempDir.resolve("mirrorlint.toml");
+        Files.writeString(badConfig, "min_jaccard = 1");
+
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int exitCode = Main.run(
+            new String[] {"scan", "src/test/resources/fixtures/mixed", "--config", badConfig.toString()},
+            new PrintStream(buffer, true, StandardCharsets.UTF_8));
+
+        assertThat(exitCode).isEqualTo(2);
+        assertThat(buffer.toString(StandardCharsets.UTF_8)).doesNotContain("Exception", "at io.github.gaurav1112");
+    }
+
+    @Test
+    void nonexistentExplicitConfigPathExitsTwoAndMentionsPath() throws Exception {
+        String badPath = "src/test/resources/fixtures/does-not-exist.toml";
+        PrintStream originalErr = System.err;
+        ByteArrayOutputStream errBuffer = new ByteArrayOutputStream();
+        int exitCode;
+        try {
+            System.setErr(new PrintStream(errBuffer, true, StandardCharsets.UTF_8));
+            exitCode = Main.run(
+                new String[] {"scan", "src/test/resources/fixtures/mixed", "--config", badPath},
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+        } finally {
+            System.setErr(originalErr);
+        }
+
+        assertThat(exitCode).isEqualTo(2);
+        assertThat(errBuffer.toString(StandardCharsets.UTF_8)).contains(badPath);
+    }
 }

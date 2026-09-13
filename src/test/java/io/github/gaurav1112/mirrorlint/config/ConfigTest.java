@@ -61,9 +61,20 @@ class ConfigTest {
     }
 
     @Test
-    void absentPathYieldsAllDefaults(@TempDir Path tempDir) {
-        Config config = Config.load(tempDir.resolve("does-not-exist.toml"));
+    void explicitNonexistentPathThrows(@TempDir Path tempDir) {
+        Path missing = tempDir.resolve("does-not-exist.toml");
 
-        assertThat(config).isEqualTo(Config.load(null));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> Config.load(missing))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining(missing.toString());
+    }
+
+    @Test
+    void malformedTypeThrowsIllegalArgumentException(@TempDir Path tempDir) throws IOException {
+        Path toml = tempDir.resolve("mirrorlint.toml");
+        Files.writeString(toml, "min_jaccard = 1");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> Config.load(toml))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 }

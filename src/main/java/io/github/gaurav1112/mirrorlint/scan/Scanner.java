@@ -66,28 +66,35 @@ public class Scanner {
         Set<Suppression> suppressions = new HashSet<>();
         int filesScanned = 0;
 
-        try (var paths = Files.walk(root)) {
-            List<Path> files = paths.filter(Files::isRegularFile).toList();
-            for (Path path : files) {
-                String relative = root.relativize(path).toString().replace('\\', '/');
-                if (isExcluded(relative)) continue;
-
-                LanguageAdapter adapter = adapterFor(relative);
-                if (adapter == null) continue;
-
-                try {
-                    String source = Files.readString(path);
-                    FileFacts facts = adapter.extract(relative, source);
-                    shapes.addAll(facts.shapes());
-                    usages.addAll(facts.usages());
-                    collectSuppressions(relative, source, suppressions);
-                    filesScanned++;
-                } catch (IOException | RuntimeException e) {
-                    System.err.println("mirrorlint: skipping unreadable/unparseable file " + relative + ": " + e.getMessage());
-                }
-            }
+        boolean singleFile = Files.isRegularFile(root);
+        List<Path> files;
+        try {
+            files = singleFile ? List.of(root) : walkDirectory(root);
         } catch (IOException e) {
             throw new UncheckedScanException(e);
+        }
+
+        for (Path path : files) {
+            // A single-file root has nothing to relativize against (root.relativize(root) is
+            // "", which no adapter's handles() matches) — dispatch on the file's own name instead.
+            String relative = singleFile
+                    ? root.getFileName().toString()
+                    : root.relativize(path).toString().replace('\\', '/');
+            if (isExcluded(relative)) continue;
+
+            LanguageAdapter adapter = adapterFor(relative);
+            if (adapter == null) continue;
+
+            try {
+                String source = Files.readString(path);
+                FileFacts facts = adapter.extract(relative, source);
+                shapes.addAll(facts.shapes());
+                usages.addAll(facts.usages());
+                collectSuppressions(relative, source, suppressions);
+                filesScanned++;
+            } catch (IOException | RuntimeException e) {
+                System.err.println("mirrorlint: skipping unreadable/unparseable file " + relative + ": " + e.getMessage());
+            }
         }
 
         List<Pair> pairs = new ArrayList<>(miner.mine(shapes));
@@ -110,6 +117,12 @@ public class Scanner {
             .thenComparing(f -> f.member().name()));
 
         return new ScanResult(findings, filesScanned);
+    }
+
+    private List<Path> walkDirectory(Path root) throws IOException {
+        try (var paths = Files.walk(root)) {
+            return paths.filter(Files::isRegularFile).toList();
+        }
     }
 
     private void collectSuppressions(String relativeFile, String source, Set<Suppression> suppressions) {
