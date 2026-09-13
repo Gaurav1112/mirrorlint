@@ -39,4 +39,22 @@ class TypeScriptAdapterTest {
         assertThat(truthShapes).hasSize(1);
         assertThat(truthShapes.get(0).memberNames()).containsExactlyInAnyOrder("a", "b", "c", "d");
     }
+
+    /**
+     * tree-sitter reports byte offsets, not char indices. Before this was handled, every source
+     * with a non-ASCII character above the shape threw StringIndexOutOfBounds and the whole file
+     * was skipped — 4 of vitest's 254 sources, silently.
+     */
+    @Test
+    void nonAsciiAboveAShapeDoesNotCorruptMemberNames() {
+        String src = "const label = '\u2192 \u2713 caf\u00e9';\n"
+            + "export const KEYS = ['maxWorkers', 'hookTimeout', 'tagsFilter'];\n";
+        FileFacts facts = new TypeScriptAdapter().extract("u.ts", src);
+
+        assertThat(facts.shapes()).anySatisfy(s -> {
+            assertThat(s.id()).isEqualTo("KEYS");
+            assertThat(s.memberNames())
+                .containsExactlyInAnyOrder("maxworkers", "hooktimeout", "tagsfilter");
+        });
+    }
 }

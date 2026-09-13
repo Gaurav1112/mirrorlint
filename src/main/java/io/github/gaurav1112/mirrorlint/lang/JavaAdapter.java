@@ -1,6 +1,7 @@
 package io.github.gaurav1112.mirrorlint.lang;
 
 import io.github.gaurav1112.mirrorlint.core.*;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.treesitter.TSNode;
@@ -12,13 +13,14 @@ public class JavaAdapter implements LanguageAdapter {
 
     @Override public FileFacts extract(String filename, String source) {
         TSNode root = TreeSitters.java_().parseString(null, source).getRootNode();
+        byte[] src = source.getBytes(StandardCharsets.UTF_8);
         List<Shape> shapes = new ArrayList<>();
         List<UsageSite> usages = new ArrayList<>();
-        walk(root, source, filename, shapes, usages);
+        walk(root, src, filename, shapes, usages);
         return new FileFacts(shapes, usages);
     }
 
-    private void walk(TSNode node, String src, String file, List<Shape> shapes, List<UsageSite> usages) {
+    private void walk(TSNode node, byte[] src, String file, List<Shape> shapes, List<UsageSite> usages) {
         String type = node.getType();
         switch (type) {
             case "array_initializer" -> collectStringArrayInitializer(node, src, file, shapes);
@@ -36,7 +38,7 @@ public class JavaAdapter implements LanguageAdapter {
         for (int i = 0; i < node.getChildCount(); i++) walk(node.getChild(i), src, file, shapes, usages);
     }
 
-    private void collectStringArrayInitializer(TSNode array, String src, String file, List<Shape> shapes) {
+    private void collectStringArrayInitializer(TSNode array, byte[] src, String file, List<Shape> shapes) {
         List<Member> members = new ArrayList<>();
         for (int i = 0; i < TypeScriptAdapter.node_named(array); i++) {
             TSNode c = array.getNamedChild(i);
@@ -47,7 +49,7 @@ public class JavaAdapter implements LanguageAdapter {
             shapes.add(new Shape(TypeScriptAdapter.idFor(array, src, file), ShapeKind.LIST, file, TypeScriptAdapter.line(array), members));
     }
 
-    private void collectListOfInvocation(TSNode invocation, String src, String file, List<Shape> shapes) {
+    private void collectListOfInvocation(TSNode invocation, byte[] src, String file, List<Shape> shapes) {
         TSNode objectNode = invocation.getChildByFieldName("object");
         TSNode nameNode = invocation.getChildByFieldName("name");
         if (objectNode == null || objectNode.isNull() || nameNode == null || nameNode.isNull()) return;
@@ -66,7 +68,7 @@ public class JavaAdapter implements LanguageAdapter {
             shapes.add(new Shape(TypeScriptAdapter.idFor(invocation, src, file), ShapeKind.LIST, file, TypeScriptAdapter.line(invocation), members));
     }
 
-    private void collectEnum(TSNode decl, String src, String file, List<Shape> shapes) {
+    private void collectEnum(TSNode decl, byte[] src, String file, List<Shape> shapes) {
         TSNode body = decl.getChildByFieldName("body");
         if (body == null || body.isNull()) return;
         List<Member> members = new ArrayList<>();
@@ -81,7 +83,7 @@ public class JavaAdapter implements LanguageAdapter {
             shapes.add(new Shape(TypeScriptAdapter.idFor(decl, src, file), ShapeKind.TRUTH, file, TypeScriptAdapter.line(decl), members));
     }
 
-    private void collectInterface(TSNode decl, String src, String file, List<Shape> shapes) {
+    private void collectInterface(TSNode decl, byte[] src, String file, List<Shape> shapes) {
         TSNode body = decl.getChildByFieldName("body");
         if (body == null || body.isNull()) return;
         List<Member> members = new ArrayList<>();
@@ -96,7 +98,7 @@ public class JavaAdapter implements LanguageAdapter {
             shapes.add(new Shape(TypeScriptAdapter.idFor(decl, src, file), ShapeKind.TRUTH, file, TypeScriptAdapter.line(decl), members));
     }
 
-    private void collectSwitchLabelUsages(TSNode label, String src, String file, List<UsageSite> usages) {
+    private void collectSwitchLabelUsages(TSNode label, byte[] src, String file, List<UsageSite> usages) {
         for (int i = 0; i < TypeScriptAdapter.node_named(label); i++) {
             TSNode c = label.getNamedChild(i);
             if (c.getType().equals("string_literal"))
