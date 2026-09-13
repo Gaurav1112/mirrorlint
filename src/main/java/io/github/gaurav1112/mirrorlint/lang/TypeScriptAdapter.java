@@ -182,10 +182,12 @@ public class TypeScriptAdapter implements LanguageAdapter {
     static int node_named(TSNode n) { return n.getNamedChildCount(); }
     static UsageSite site(TSNode n, byte[] src, String file, String member) { return new UsageSite(file, line(n), member); }
     static String idFor(TSNode node, byte[] src, String file) {
-        TSNode p = node.getParent();
+        // Check the node itself before walking up: `collectInterface` passes the
+        // `interface_declaration` node directly, so it must be checked, not just its ancestors.
+        TSNode p = node;
         while (p != null && !p.isNull()) {
             if (p.getType().equals("variable_declarator") || p.getType().equals("type_alias_declaration")
-                || p.getType().equals("interface_declaration")) {
+                || p.getType().equals("interface_declaration") || p.getType().equals("enum_declaration")) {
                 TSNode name = p.getChildByFieldName("name");
                 if (name != null && !name.isNull()) return text(name, src);
             }

@@ -77,6 +77,23 @@ class TypeScriptAdapterTest {
     }
 
     /**
+     * {@code collectInterface} passes the {@code interface_declaration} node itself to
+     * {@code idFor}, which historically only walked the PARENT chain looking for a naming
+     * ancestor. A top-level interface has no such ancestor, so its shape id fell back to
+     * {@code file:line} instead of the interface's own name.
+     */
+    @Test
+    void interfaceDeclarationIdIsTheInterfaceName() {
+        String src = "interface Opts { alpha: number; beta: number; gamma: number; }";
+        FileFacts facts = new TypeScriptAdapter().extract("t.ts", src);
+
+        assertThat(facts.shapes()).anySatisfy(s -> {
+            assertThat(s.kind()).isEqualTo(ShapeKind.TRUTH);
+            assertThat(s.id()).isEqualTo("Opts");
+        });
+    }
+
+    /**
      * tree-sitter reports byte offsets, not char indices. Before this was handled, every source
      * with a non-ASCII character above the shape threw StringIndexOutOfBounds and the whole file
      * was skipped — 4 of vitest's 254 sources, silently.
