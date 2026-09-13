@@ -3,3 +3,6 @@ target/
 *.iml
 dependency-reduced-pom.xml
 receipts/cache/
+receipts/audit/cache/
+receipts/audit/*.json
+receipts/audit/*.stderr

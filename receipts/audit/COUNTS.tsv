@@ -1,0 +1,11 @@
+repo	subpath	seconds	total	default	info	default_omissions	subset_info_omissions
+vitest-dev/vitest	packages/vitest/src	4	551	256	295	256	68
+microsoft/playwright	packages	122	26357	14474	11883	14474	1020
+nestjs/nest	packages	3	348	148	200	148	15
+honojs/hono	src	2	77	41	36	41	6
+fastify/fastify	lib	0	24	7	17	7	0
+spring-projects/spring-kafka	spring-kafka/src/main/java	3	0	0	0	0	0
+spring-projects/spring-integration	spring-integration-core/src/main/java	4	0	0	0	0	0
+testcontainers/testcontainers-java	core/src/main/java	1	0	0	0	0	0
+micrometer-metrics/micrometer	micrometer-core/src/main/java	2	12	5	7	5	0
+prometheus/prometheus	web/ui	8	1319	672	647	672	43

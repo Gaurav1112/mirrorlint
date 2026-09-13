@@ -1,0 +1,10 @@
+vitest-dev/vitest	2ce29d5fa758046e5453bd92b8ed6c9da9709bb5	packages/vitest/src
+microsoft/playwright	d1ead3ecca23182f2d06d761c28e3d4edafb6595	packages
+nestjs/nest	a3a31b96436a0c5fc33266a19c02cfa4fd2c03c0	packages
+honojs/hono	8755b17fbcfdee76511eeb460e18e94e6c9a8d30	src
+fastify/fastify	f1b1e1f3614d2665d941fc3da4d8e005ba9cbc82	lib
+spring-projects/spring-kafka	727690377d6d3659352e458bdf7a07f2a99d8ff1	spring-kafka/src/main/java
+spring-projects/spring-integration	fa6948ae6d60cd89bfeab2372d71e93288fad294	spring-integration-core/src/main/java
+testcontainers/testcontainers-java	8e549514e3f01c57d70546fbb8599d138f3903e5	core/src/main/java
+micrometer-metrics/micrometer	8a69589a69e969f4109eae87b5737afe18f269e0	micrometer-core/src/main/java
+prometheus/prometheus	46ef3704189798f58af5dd4ac7d2f87ac8880f30	web/ui
