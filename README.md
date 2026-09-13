@@ -22,11 +22,19 @@ Both receipts are rediscoveries: the tool is pointed at the commit *before*
 the fix landed (or, for playwright, at the tip where the fix hasn't landed
 yet) and finds the same gap a human maintainer found by hand.
 
-The same defect family — a hand-maintained list quietly falling out of sync
-with its source-of-truth type — also produced merged fixes in vitest (the
-[#11109](https://github.com/vitest-dev/vitest/pull/11109) class), spring-kafka,
-[spring-integration (GH-11415)](https://github.com/spring-projects/spring-integration/issues/11415),
-and [testcontainers-java (#12073)](https://github.com/testcontainers/testcontainers-java/pull/12073).
+Beyond this repo's own receipts, the same author has merged unrelated fixes
+elsewhere in the JS and Spring ecosystems: a sibling-method drift in
+spring-kafka (landed on `main` via cherry-picked commit
+[`e40a9797`](https://github.com/spring-projects/spring-kafka/commit/e40a97976ebf2bf1c0d7a2997b081ee9f4bafcb7),
+superseding the closed [#4594](https://github.com/spring-projects/spring-kafka/pull/4594)),
+and a constructor-dispatch fix in spring-amqp
+([#3606](https://github.com/spring-projects/spring-amqp/pull/3606), merged).
+Still open and under review: vitest
+([#11109](https://github.com/vitest-dev/vitest/pull/11109)),
+spring-integration
+([GH-11415](https://github.com/spring-projects/spring-integration/pull/11415)),
+and testcontainers-java
+([#12073](https://github.com/testcontainers/testcontainers-java/pull/12073)).
 
 Three negative controls are wired into the same receipts run and never fire
 at default severity: `teardownTimeout`, `vmMemoryLimit`, and
