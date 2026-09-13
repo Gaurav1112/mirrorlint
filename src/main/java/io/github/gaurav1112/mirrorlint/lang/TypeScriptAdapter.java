@@ -3,7 +3,9 @@ package io.github.gaurav1112.mirrorlint.lang;
 import io.github.gaurav1112.mirrorlint.core.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.treesitter.TSNode;
 
 public class TypeScriptAdapter implements LanguageAdapter {
@@ -27,6 +29,9 @@ public class TypeScriptAdapter implements LanguageAdapter {
             case "array" -> collectStringArray(node, src, file, shapes);
             case "union_type" -> collectUnion(node, src, file, shapes);
             case "interface_declaration" -> collectInterface(node, src, file, shapes);
+            case "object_type" -> collectObjectType(node, src, file, shapes);
+            case "object" -> collectObjectLiteral(node, src, file, shapes);
+            case "object_pattern" -> collectObjectPattern(node, src, file, shapes);
             case "member_expression" -> {
                 TSNode prop = node.getChildByFieldName("property");
                 if (prop != null && !prop.isNull()) usages.add(site(prop, src, file, text(prop, src)));
@@ -75,16 +80,90 @@ public class TypeScriptAdapter implements LanguageAdapter {
     private void collectInterface(TSNode decl, byte[] src, String file, List<Shape> shapes) {
         TSNode body = decl.getChildByFieldName("body");
         if (body == null || body.isNull()) return;
-        List<Member> members = new ArrayList<>();
-        for (int i = 0; i < node_named(body); i++) {
-            TSNode c = body.getNamedChild(i);
-            if (c.getType().equals("property_signature")) {
-                TSNode name = c.getChildByFieldName("name");
-                if (name != null && !name.isNull()) members.add(new Member(text(name, src), file, line(name)));
-            }
-        }
+        List<Member> members = propertySignatures(body, src, file);
         if (members.size() >= 3)
             shapes.add(new Shape(idFor(decl, src, file), ShapeKind.TRUTH, file, line(decl), members));
+    }
+
+    /**
+     * A bare object type — {@code type Foo = { a: string; b: number }}, or an inline annotation.
+     * The interface form has its own case above (an {@code interface_declaration}'s body IS an
+     * {@code object_type}), so that parent is skipped here to avoid emitting the shape twice.
+     */
+    private void collectObjectType(TSNode objectType, byte[] src, String file, List<Shape> shapes) {
+        TSNode parent = objectType.getParent();
+        if (parent != null && !parent.isNull() && parent.getType().equals("interface_declaration")) return;
+        List<Member> members = propertySignatures(objectType, src, file);
+        if (members.size() >= 3)
+            shapes.add(new Shape(idFor(objectType, src, file), ShapeKind.TRUTH, file, line(objectType), members));
+    }
+
+    private List<Member> propertySignatures(TSNode body, byte[] src, String file) {
+        List<Member> members = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (int i = 0; i < node_named(body); i++) {
+            TSNode c = body.getNamedChild(i);
+            if (!c.getType().equals("property_signature") && !c.getType().equals("method_signature")) continue;
+            TSNode name = c.getChildByFieldName("name");
+            if (name == null || name.isNull()) continue;
+            String raw = Shape.normalizeRaw(text(name, src));
+            if (seen.add(Shape.normalize(raw))) members.add(new Member(raw, file, line(name)));
+        }
+        return members;
+    }
+
+    /**
+     * An object literal's key set — {@code { a: 1, b: 2, ...rest }}. Recorded as
+     * {@link ShapeKind#LITERAL}: useful as one half of a near-identical twin pair, but never as the
+     * subset half, because a value's keys are allowed to be a partial view of its type.
+     */
+    private void collectObjectLiteral(TSNode object, byte[] src, String file, List<Shape> shapes) {
+        List<Member> members = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (int i = 0; i < node_named(object); i++) {
+            TSNode c = object.getNamedChild(i);
+            TSNode name = switch (c.getType()) {
+                case "pair", "method_definition" -> c.getChildByFieldName("key") != null
+                        && !c.getChildByFieldName("key").isNull()
+                    ? c.getChildByFieldName("key") : c.getChildByFieldName("name");
+                case "shorthand_property_identifier" -> c;
+                default -> null;
+            };
+            if (name == null || name.isNull()) continue;
+            String type = name.getType();
+            if (!type.equals("property_identifier") && !type.equals("string")
+                    && !type.equals("shorthand_property_identifier")) continue;
+            String raw = Shape.normalizeRaw(text(name, src));
+            if (seen.add(Shape.normalize(raw))) members.add(new Member(raw, file, line(name)));
+        }
+        if (members.size() >= 3)
+            shapes.add(new Shape(idForNearest(object, src, file), ShapeKind.LITERAL, file, line(object), members));
+    }
+
+    /**
+     * A destructuring pattern's key set — {@code const { a, b, c } = opts}, or a destructured
+     * parameter. This is the shape a consumer expects its source to have, so an option the source
+     * declares but no destructure ever names is drift the type checker cannot see.
+     */
+    private void collectObjectPattern(TSNode pattern, byte[] src, String file, List<Shape> shapes) {
+        List<Member> members = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (int i = 0; i < node_named(pattern); i++) {
+            TSNode c = pattern.getNamedChild(i);
+            TSNode name = switch (c.getType()) {
+                case "shorthand_property_identifier_pattern" -> c;
+                case "pair_pattern" -> c.getChildByFieldName("key");
+                case "object_assignment_pattern" -> c.getChildByFieldName("left");
+                default -> null;
+            };
+            if (name == null || name.isNull()) continue;
+            if (name.getType().equals("object_pattern") || name.getType().equals("array_pattern")) continue;
+            String raw = Shape.normalizeRaw(text(name, src));
+            if (raw.isEmpty() || !seen.add(Shape.normalize(raw))) continue;
+            members.add(new Member(raw, file, line(name)));
+        }
+        if (members.size() >= 3)
+            shapes.add(new Shape(idForNearest(pattern, src, file), ShapeKind.LIST, file, line(pattern), members));
     }
 
     // ---- helpers shared with JavaAdapter: keep signatures identical there ----
@@ -109,6 +188,32 @@ public class TypeScriptAdapter implements LanguageAdapter {
                 || p.getType().equals("interface_declaration")) {
                 TSNode name = p.getChildByFieldName("name");
                 if (name != null && !name.isNull()) return text(name, src);
+            }
+            p = p.getParent();
+        }
+        return file + ":" + line(node);
+    }
+
+    /**
+     * Like {@link #idFor} but also accepts the key of an enclosing object-literal entry, so an
+     * anonymous object/destructure nested inside a big literal is named after its own slot
+     * ({@code _combinedContextOptions}) rather than the outermost {@code const}.
+     */
+    static String idForNearest(TSNode node, byte[] src, String file) {
+        TSNode p = node.getParent();
+        while (p != null && !p.isNull()) {
+            String t = p.getType();
+            if (t.equals("pair") || t.equals("public_field_definition")) {
+                TSNode key = p.getChildByFieldName("key");
+                if (key == null || key.isNull()) key = p.getChildByFieldName("name");
+                if (key != null && !key.isNull()) return Shape.normalizeRaw(text(key, src));
+            }
+            if (t.equals("variable_declarator") || t.equals("type_alias_declaration")
+                || t.equals("interface_declaration")) {
+                TSNode name = p.getChildByFieldName("name");
+                // `const { a, b } = x` names the declarator with the pattern itself; that is not an id.
+                if (name != null && !name.isNull() && name.getType().endsWith("identifier"))
+                    return text(name, src);
             }
             p = p.getParent();
         }

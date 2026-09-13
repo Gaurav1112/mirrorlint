@@ -40,6 +40,42 @@ class TypeScriptAdapterTest {
         assertThat(truthShapes.get(0).memberNames()).containsExactlyInAnyOrder("a", "b", "c", "d");
     }
 
+    @Test
+    void destructuringPatternIsANameList() {
+        String src = "export function build({ viewport, locale, timezoneId, userAgent }) { return 1; }";
+        FileFacts facts = new TypeScriptAdapter().extract("index.ts", src);
+
+        assertThat(facts.shapes()).anySatisfy(s -> {
+            assertThat(s.kind()).isEqualTo(ShapeKind.LIST);
+            assertThat(s.memberNames())
+                .containsExactlyInAnyOrder("viewport", "locale", "timezoneid", "useragent");
+        });
+    }
+
+    @Test
+    void objectLiteralKeysAreALiteralNotANameList() {
+        String src = "export const defaults = { viewport: null, locale: 'en-US', timezoneId: 'UTC' };";
+        FileFacts facts = new TypeScriptAdapter().extract("defaults.ts", src);
+
+        assertThat(facts.shapes()).anySatisfy(s -> {
+            assertThat(s.kind()).isEqualTo(ShapeKind.LITERAL);
+            assertThat(s.id()).isEqualTo("defaults");
+            assertThat(s.memberNames()).containsExactlyInAnyOrder("viewport", "locale", "timezoneid");
+        });
+    }
+
+    @Test
+    void typeAliasObjectTypeIsTruth() {
+        String src = "export type Opts = { viewport: number; locale: string; timezoneId: string };";
+        FileFacts facts = new TypeScriptAdapter().extract("t.ts", src);
+
+        assertThat(facts.shapes()).anySatisfy(s -> {
+            assertThat(s.kind()).isEqualTo(ShapeKind.TRUTH);
+            assertThat(s.id()).isEqualTo("Opts");
+            assertThat(s.memberNames()).containsExactlyInAnyOrder("viewport", "locale", "timezoneid");
+        });
+    }
+
     /**
      * tree-sitter reports byte offsets, not char indices. Before this was handled, every source
      * with a non-ASCII character above the shape threw StringIndexOutOfBounds and the whole file
@@ -47,7 +83,7 @@ class TypeScriptAdapterTest {
      */
     @Test
     void nonAsciiAboveAShapeDoesNotCorruptMemberNames() {
-        String src = "const label = '\u2192 \u2713 caf\u00e9';\n"
+        String src = "const label = '→ ✓ café';\n"
             + "export const KEYS = ['maxWorkers', 'hookTimeout', 'tagsFilter'];\n";
         FileFacts facts = new TypeScriptAdapter().extract("u.ts", src);
 
