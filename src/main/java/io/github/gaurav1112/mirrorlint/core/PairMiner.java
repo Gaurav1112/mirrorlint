@@ -54,10 +54,13 @@ public class PairMiner {
     /**
      * Indexed mining: a pair with zero shared members can never clear {@code minShared >= 1}
      * ({@link SetOverlap} requires it for both the jaccard and subset rules), so the only pairs
-     * worth ever calling {@link #consider} on are ones that share at least one member. An inverted
-     * index (normalized member name → shape indices) turns "all shape pairs" into "shape pairs
-     * that co-occur in some member's bucket," which is the set {@link #mineNaive} would eventually
-     * reach anyway minus all the guaranteed-zero-overlap comparisons — same results, less work.
+     * worth ever calling {@link #consider} on are ones that share at least one member. (This holds
+     * even if a caller configures {@code minShared} down to 0, since {@code minJaccard} and
+     * {@code minContainment} are never simultaneously 0 either, so a zero-overlap pair still can't
+     * clear both checks in {@link #consider}.) An inverted index (normalized member name → shape
+     * indices) turns "all shape pairs" into "shape pairs that co-occur in some member's bucket,"
+     * which is the set {@link #mineNaive} would eventually reach anyway minus all the
+     * guaranteed-zero-overlap comparisons — same results, less work.
      *
      * <p>Candidate index pairs are deduplicated (a shape pair can share several members, i.e.
      * appear in several buckets) and then walked in the same ascending (i, j) order the naive

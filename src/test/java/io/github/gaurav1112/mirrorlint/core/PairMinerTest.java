@@ -90,12 +90,20 @@ class PairMinerTest {
 
     /**
      * 190 shapes in 19 member-disjoint clusters of 10 (each cluster draws overlapping subsets of
-     * its own 12-name pool, so twins and subset mirrors both occur within a cluster) plus 10
-     * shapes whose member names appear nowhere else in the corpus. The inverted index the indexed
-     * {@code mine()} builds must only ever compare shapes that share a member, so cross-cluster
-     * and disjoint shapes generate zero candidate pairs by construction — while {@code mineNaive}
-     * still walks every pair. This exercises both shapes: the mined pairs (does the index find the
-     * same real work) and the never-compared pairs (does the index correctly skip the fake work).
+     * its own 12-name pool, so twins occur within a cluster — every shape in a cluster lands at
+     * exactly 8 members, so same-size jaccard twins and equal-size bidirectional pairs both occur,
+     * but nothing here alone produces a differing-size pair), plus a truncated LIST-kind variant
+     * (first 4 members) emitted after every 4th shape overall, which — when its parent happens to
+     * be TRUTH-kind (8 members) — is a strict subset of differing size: containment 4/4 = 1.0
+     * clears {@code minContainment}, jaccard 4/8 = 0.5 clears {@code minSubsetJaccard} but sits
+     * below the {@code minJaccard} twin floor, so it can only ever be mined via the subset-mirror
+     * branch. This is on top of 10 shapes whose member names appear nowhere else in the corpus.
+     * The inverted index the indexed {@code mine()} builds must only ever compare shapes that
+     * share a member, so cross-cluster and disjoint shapes generate zero candidate pairs by
+     * construction — while {@code mineNaive} still walks every pair. This exercises all three
+     * shapes: the mined twin/subset pairs (does the index find the same real work), the
+     * never-compared pairs (does the index correctly skip the fake work), and the subset-mirror
+     * branch specifically (does an actual differing-size candidate reach it).
      */
     private List<Shape> mixedClusteredAndDisjointShapes() {
         List<Shape> shapes = new java.util.ArrayList<>();
@@ -113,13 +121,25 @@ class PairMinerTest {
                     default -> ShapeKind.LITERAL;
                 };
                 shapes.add(shape("c" + c + "_s" + s, kind, names.toArray(new String[0])));
+
+                // Every 4th shape overall gets a truncated companion: the first 4 of its own
+                // members, re-tagged LIST. When the parent is TRUTH-kind this is a differing-size
+                // strict subset that clears containment but not the twin jaccard floor — the only
+                // way the subset-mirror branch in PairMiner#consider gets exercised. When the
+                // parent isn't TRUTH-kind the subset gate rejects it (superset must be TRUTH), so
+                // the truncation is harmless there too — it just adds index-equivalence coverage.
+                if (shapes.size() % 4 == 0) {
+                    List<String> truncated = names.subList(0, Math.min(4, names.size()));
+                    shapes.add(shape("c" + c + "_s" + s + "_trunc", ShapeKind.LIST,
+                            truncated.toArray(new String[0])));
+                }
             }
         }
         for (int d = 0; d < 10; d++) {
             shapes.add(shape("disjoint_" + d, ShapeKind.LIST,
                     "solo_" + d + "_a", "solo_" + d + "_b", "solo_" + d + "_c", "solo_" + d + "_d"));
         }
-        return shapes; // 19 * 10 + 10 = 200
+        return shapes;
     }
 
     @Test
@@ -131,6 +151,21 @@ class PairMinerTest {
         List<Pair> naive = miner.mineNaive(shapes);
 
         assertThat(indexed).containsExactlyElementsOf(naive);
+
+        // Pin down that the corpus actually reaches both branches PairMiner#consider can take,
+        // not just the jaccard-twin one — a corpus that silently collapsed to all-equal-size
+        // shapes (as this one once did) would still pass the equivalence check above while never
+        // touching the subset-mirror path.
+        long subsetPairCount = indexed.stream().filter(Pair::subset).count();
+        long equalSizeBidirectionalPairCount = indexed.stream()
+            .filter(p -> !p.subset() && p.truth().memberNames().size() == p.mirror().memberNames().size())
+            .count();
+        assertThat(subsetPairCount)
+            .as("corpus must exercise the subset-mirror (containment) branch, not just jaccard twins")
+            .isGreaterThan(0);
+        assertThat(equalSizeBidirectionalPairCount)
+            .as("corpus must still exercise the equal-size bidirectional twin branch")
+            .isGreaterThan(0);
     }
 
     /**
