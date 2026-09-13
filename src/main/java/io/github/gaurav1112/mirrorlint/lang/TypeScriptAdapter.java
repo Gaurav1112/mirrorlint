@@ -51,6 +51,9 @@ public class TypeScriptAdapter implements LanguageAdapter {
     }
 
     private void collectUnion(TSNode union, String src, String file, List<Shape> shapes) {
+        TSNode parent = union.getParent();
+        if (parent != null && !parent.isNull() && parent.getType().equals("union_type")) return;
+
         List<Member> members = new ArrayList<>();
         flattenUnion(union, src, file, members);
         if (members.size() >= 3)
