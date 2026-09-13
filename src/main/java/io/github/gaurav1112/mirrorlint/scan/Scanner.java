@@ -29,6 +29,9 @@ public class Scanner {
         this.miner = miner;
         this.verifier = verifier;
         this.excludeMatchers = excludeGlobs.stream()
+            .flatMap(g -> g.startsWith("**/")
+                ? java.util.stream.Stream.of(g, g.substring(3))
+                : java.util.stream.Stream.of(g))
             .map(g -> FileSystems.getDefault().getPathMatcher("glob:" + g))
             .toList();
     }
