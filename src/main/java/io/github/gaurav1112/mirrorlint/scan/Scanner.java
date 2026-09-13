@@ -109,15 +109,18 @@ public class Scanner {
 
                 FileFacts facts = adapter.extract(relative, source);
                 List<Shape> fileShapes = facts.shapes();
-                if (GeneratedFileDetector.isGenerated(source)) {
+                if (relative.endsWith(".d.ts")) {
+                    // A .d.ts file's own member enumerations (a string array, an object literal's
+                    // keys) are still just prose next to the interfaces/enums that are the actual
+                    // truth there — only TRUTH-kind shapes come out of it. This rule wins even when
+                    // the .d.ts is also machine-generated: a declaration file is a truth surface
+                    // regardless of who wrote it, so its TRUTH shapes must survive (only the
+                    // LIST/LITERAL decoys next to it get dropped).
+                    fileShapes = fileShapes.stream().filter(s -> s.kind() == ShapeKind.TRUTH).toList();
+                } else if (GeneratedFileDetector.isGenerated(source)) {
                     // Generated output legitimately mirrors its truth on every run; usages still
                     // count (the code still reads those members), only the mirror shape is dropped.
                     fileShapes = List.of();
-                } else if (relative.endsWith(".d.ts")) {
-                    // A .d.ts file's own member enumerations (a string array, an object literal's
-                    // keys) are still just prose next to the interfaces/enums that are the actual
-                    // truth there — only TRUTH-kind shapes come out of it.
-                    fileShapes = fileShapes.stream().filter(s -> s.kind() == ShapeKind.TRUTH).toList();
                 }
 
                 shapes.addAll(fileShapes);
