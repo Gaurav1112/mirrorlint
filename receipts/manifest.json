@@ -1,0 +1,47 @@
+{
+  "receipts": [
+    {
+      "repo": "vitest-dev/vitest",
+      "sha": "58f02ae3663435854902ca8c2de049e75c4610f9",
+      "why": "parent of the merge commit of vitest-dev/vitest#11102 — the tree that still has the bug. PROJECT_CLI_OVERRIDES, the allowlist of CLI options copied into each project's config, is missing maxWorkers, so --maxWorkers is silently dropped whenever `projects` is declared.",
+      "sparse_paths": ["packages/vitest/src"],
+      "subpath": "packages/vitest/src",
+      "expect_member": "maxWorkers",
+      "expect_mirror_contains": "resolveProjects",
+      "min_shared": 4
+    },
+    {
+      "repo": "microsoft/playwright",
+      "sha": "d1ead3ecca23182f2d06d761c28e3d4edafb6595",
+      "why": "main as of 2026-09-13; the fix for microsoft/playwright#42679 is not merged. The TestOptions fixture list in packages/playwright/src/index.ts is missing `screen`, which every device descriptor carries and which BrowserContextOptions declares, so test.use({...devices[x]}) silently drops it.",
+      "sparse_paths": ["packages/playwright", "packages/playwright-core"],
+      "subpath": "packages",
+      "expect_member": "screen",
+      "expect_mirror_contains": "index",
+      "min_shared": 4
+    }
+  ],
+  "negative_controls": [
+    {
+      "repo": "vitest-dev/vitest",
+      "sha": "58f02ae3663435854902ca8c2de049e75c4610f9",
+      "subpath": "packages/vitest/src",
+      "member_never_default": "teardownTimeout",
+      "why": "consumed only at root level — never a per-project option, so an allowlist that omits it is correct, not drift."
+    },
+    {
+      "repo": "vitest-dev/vitest",
+      "sha": "58f02ae3663435854902ca8c2de049e75c4610f9",
+      "subpath": "packages/vitest/src",
+      "member_never_default": "vmMemoryLimit",
+      "why": "root-level pool sizing only."
+    },
+    {
+      "repo": "vitest-dev/vitest",
+      "sha": "58f02ae3663435854902ca8c2de049e75c4610f9",
+      "subpath": "packages/vitest/src",
+      "member_never_default": "dangerouslyIgnoreUnhandledErrors",
+      "why": "root-level error handling only."
+    }
+  ]
+}
