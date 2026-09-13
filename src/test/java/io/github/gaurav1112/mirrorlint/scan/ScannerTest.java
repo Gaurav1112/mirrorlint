@@ -23,4 +23,16 @@ class ScannerTest {
         assertThat(result.findings()).noneMatch(f -> f.pair().mirror().file().contains("node_modules"));
         assertThat(result.findings()).noneMatch(f -> f.pair().truth().file().contains("node_modules"));
     }
+
+    @Test
+    void suppressesFindingWithInlineIgnoreComment() {
+        Scanner scanner = new Scanner(
+            List.of(new TypeScriptAdapter(), new JavaAdapter()),
+            new PairMiner(0.6, 3), new Verifier(0.5),
+            List.of());
+        var result = scanner.scan(Path.of("src/test/resources/fixtures/suppress"));
+        assertThat(result.filesScanned()).isEqualTo(2);
+        assertThat(result.findings())
+            .noneMatch(f -> Shape.normalize(f.member().name()).equals("hooktimeout"));
+    }
 }
