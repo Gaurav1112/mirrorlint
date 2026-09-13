@@ -53,7 +53,8 @@ public class Scanner {
     /** Convenience constructor: builds the miner/verifier/excludes/declaredPairs straight from a loaded Config. */
     public Scanner(List<LanguageAdapter> adapters, Config config) {
         this(adapters,
-            new PairMiner(config.minJaccard(), config.minShared()),
+            new PairMiner(config.minJaccard(), config.minShared(), config.minContainment(),
+                config.minSubsetJaccard()),
             new Verifier(config.minScore()),
             config.excludes(),
             config.declaredPairs());

@@ -29,6 +29,54 @@ class PairMinerTest {
         assertThat(new PairMiner(0.6, 4).mine(List.of(a, b))).isEmpty();
     }
 
+    /**
+     * The vitest receipt in miniature: an allowlist naming a handful of a big config type's
+     * options. Jaccard is 6/18 = 0.33 — far under 0.6 — because the truth is deliberately bigger.
+     */
+    @Test
+    void allowlistDrawnFromABigTypeIsASubsetMirror() {
+        Shape truth = shape("SerializedConfig", ShapeKind.TRUTH,
+            "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r");
+        Shape allowlist = shape("OVERRIDES", ShapeKind.LIST, "a", "b", "c", "d", "e", "f");
+
+        List<Pair> pairs = new PairMiner(0.6, 4).mine(List.of(truth, allowlist));
+
+        assertThat(pairs).hasSize(1);
+        assertThat(pairs.get(0).truth().id()).isEqualTo("SerializedConfig");
+        assertThat(pairs.get(0).mirror().id()).isEqualTo("OVERRIDES");
+    }
+
+    /**
+     * An object literal's keys are a value, not a copy of a member list: a defaults table or a
+     * serializer output carries a subset of its type on purpose. Pairing those produced every
+     * negative-control violation the receipts corpus caught.
+     */
+    @Test
+    void objectLiteralIsNeverTheSubsetHalf() {
+        Shape truth = shape("InlineConfig", ShapeKind.TRUTH,
+            "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r");
+        Shape defaults = shape("configDefaults", ShapeKind.LITERAL, "a", "b", "c", "d", "e", "f");
+
+        assertThat(new PairMiner(0.6, 4).mine(List.of(truth, defaults))).isEmpty();
+    }
+
+    @Test
+    void subsetCoveringTooLittleOfTheTruthIsNotAMirror() {
+        Shape truth = shape("Kitchen", ShapeKind.TRUTH,
+            "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r",
+            "s", "t", "u", "v", "w", "x", "y", "z");
+        Shape tuple = shape("TUPLE", ShapeKind.LIST, "a", "b", "c", "d"); // 4/26 = 0.15 jaccard
+
+        assertThat(new PairMiner(0.6, 4).mine(List.of(truth, tuple))).isEmpty();
+    }
+
+    @Test
+    void looselyOverlappingListsAreNotSubsetMirrors() {
+        Shape truth = shape("T", ShapeKind.TRUTH, "a", "b", "c", "d", "e", "f", "g");
+        Shape other = shape("M", ShapeKind.LIST, "a", "b", "c", "d", "x", "y"); // containment 4/6
+        assertThat(new PairMiner(0.6, 4).mine(List.of(truth, other))).isEmpty();
+    }
+
     @Test
     void largerListBecomesTruthBetweenTwoLists() {
         Shape big = shape("BIG", ShapeKind.LIST, "a", "b", "c", "d", "e");

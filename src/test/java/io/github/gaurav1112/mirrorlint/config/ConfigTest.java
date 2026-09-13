@@ -16,6 +16,8 @@ class ConfigTest {
             min_jaccard = 0.7
             min_shared = 2
             min_score = 0.4
+            min_containment = 0.9
+            min_subset_jaccard = 0.4
             excludes = ["**/generated/**"]
 
             [[pairs]]
@@ -30,6 +32,8 @@ class ConfigTest {
         assertThat(config.minJaccard()).isEqualTo(0.7);
         assertThat(config.minShared()).isEqualTo(2);
         assertThat(config.minScore()).isEqualTo(0.4);
+        assertThat(config.minContainment()).isEqualTo(0.9);
+        assertThat(config.minSubsetJaccard()).isEqualTo(0.4);
 
         assertThat(config.excludes()).contains("**/generated/**");
         assertThat(config.excludes()).containsAll(Config.DEFAULT_EXCLUDES);
@@ -50,6 +54,8 @@ class ConfigTest {
         assertThat(config.minJaccard()).isEqualTo(0.6);
         assertThat(config.minShared()).isEqualTo(4);
         assertThat(config.minScore()).isEqualTo(0.5);
+        assertThat(config.minContainment()).isEqualTo(0.8);
+        assertThat(config.minSubsetJaccard()).isEqualTo(0.3);
         assertThat(config.excludes()).isEqualTo(Config.DEFAULT_EXCLUDES);
         assertThat(config.declaredPairs()).isEmpty();
     }

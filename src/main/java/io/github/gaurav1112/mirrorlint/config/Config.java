@@ -19,6 +19,8 @@ public record Config(
         double minJaccard,
         int minShared,
         double minScore,
+        double minContainment,
+        double minSubsetJaccard,
         List<String> excludes,
         List<DeclaredPair> declaredPairs) {
 
@@ -27,6 +29,10 @@ public record Config(
     public static final double DEFAULT_MIN_JACCARD = 0.6;
     public static final int DEFAULT_MIN_SHARED = 4;
     public static final double DEFAULT_MIN_SCORE = 0.5;
+    /** See {@code PairMiner} — the subset-mirror rule, which jaccard alone cannot express. */
+    public static final double DEFAULT_MIN_CONTAINMENT = 0.8;
+    /** The lower jaccard floor a subset mirror must still clear. See {@code PairMiner}. */
+    public static final double DEFAULT_MIN_SUBSET_JACCARD = 0.3;
     public static final List<String> DEFAULT_EXCLUDES = List.of(
             "**/test/**", "**/tests/**", "**/__tests__/**", "**/node_modules/**",
             "**/target/**", "**/build/**", "**/dist/**", "**/*.spec.*", "**/*.test.*");
@@ -50,6 +56,10 @@ public record Config(
         double minJaccard = result.contains("min_jaccard") ? result.getDouble("min_jaccard") : DEFAULT_MIN_JACCARD;
         int minShared = result.contains("min_shared") ? result.getLong("min_shared").intValue() : DEFAULT_MIN_SHARED;
         double minScore = result.contains("min_score") ? result.getDouble("min_score") : DEFAULT_MIN_SCORE;
+        double minContainment = result.contains("min_containment")
+                ? result.getDouble("min_containment") : DEFAULT_MIN_CONTAINMENT;
+        double minSubsetJaccard = result.contains("min_subset_jaccard")
+                ? result.getDouble("min_subset_jaccard") : DEFAULT_MIN_SUBSET_JACCARD;
 
         List<String> excludes = new ArrayList<>(DEFAULT_EXCLUDES);
         TomlArray excludesArray = result.getArrayOrEmpty("excludes");
@@ -68,10 +78,12 @@ public record Config(
                     pairTable.getString("mirror_id")));
         }
 
-        return new Config(minJaccard, minShared, minScore, List.copyOf(excludes), List.copyOf(declaredPairs));
+        return new Config(minJaccard, minShared, minScore, minContainment, minSubsetJaccard,
+                List.copyOf(excludes), List.copyOf(declaredPairs));
     }
 
     private static Config defaults() {
-        return new Config(DEFAULT_MIN_JACCARD, DEFAULT_MIN_SHARED, DEFAULT_MIN_SCORE, DEFAULT_EXCLUDES, List.of());
+        return new Config(DEFAULT_MIN_JACCARD, DEFAULT_MIN_SHARED, DEFAULT_MIN_SCORE,
+                DEFAULT_MIN_CONTAINMENT, DEFAULT_MIN_SUBSET_JACCARD, DEFAULT_EXCLUDES, List.of());
     }
 }
