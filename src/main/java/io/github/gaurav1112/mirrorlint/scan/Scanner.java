@@ -6,18 +6,24 @@ import io.github.gaurav1112.mirrorlint.core.Finding;
 import io.github.gaurav1112.mirrorlint.core.Pair;
 import io.github.gaurav1112.mirrorlint.core.PairMiner;
 import io.github.gaurav1112.mirrorlint.core.Shape;
+import io.github.gaurav1112.mirrorlint.core.ShapeKind;
 import io.github.gaurav1112.mirrorlint.core.UsageSite;
 import io.github.gaurav1112.mirrorlint.core.Verifier;
 import io.github.gaurav1112.mirrorlint.lang.FileFacts;
+import io.github.gaurav1112.mirrorlint.lang.GeneratedFileDetector;
 import io.github.gaurav1112.mirrorlint.lang.LanguageAdapter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -64,6 +70,8 @@ public class Scanner {
         List<Shape> shapes = new ArrayList<>();
         List<UsageSite> usages = new ArrayList<>();
         Set<Suppression> suppressions = new HashSet<>();
+        Set<String> seenHashes = new HashSet<>();
+        boolean[] duplicateNoted = {false};
         int filesScanned = 0;
 
         boolean singleFile = Files.isRegularFile(root);
@@ -87,8 +95,32 @@ public class Scanner {
 
             try {
                 String source = Files.readString(path);
+
+                // A byte-identical source already seen this scan (e.g. the same vendored file
+                // checked in under two paths) is skipped entirely: same shapes, same findings,
+                // just counted twice for no reason. First path in (sorted) walk order wins.
+                if (!seenHashes.add(sha256(source))) {
+                    if (!duplicateNoted[0]) {
+                        System.err.println("mirrorlint: skipping duplicate source(s) byte-identical to an earlier file");
+                        duplicateNoted[0] = true;
+                    }
+                    continue;
+                }
+
                 FileFacts facts = adapter.extract(relative, source);
-                shapes.addAll(facts.shapes());
+                List<Shape> fileShapes = facts.shapes();
+                if (GeneratedFileDetector.isGenerated(source)) {
+                    // Generated output legitimately mirrors its truth on every run; usages still
+                    // count (the code still reads those members), only the mirror shape is dropped.
+                    fileShapes = List.of();
+                } else if (relative.endsWith(".d.ts")) {
+                    // A .d.ts file's own member enumerations (a string array, an object literal's
+                    // keys) are still just prose next to the interfaces/enums that are the actual
+                    // truth there — only TRUTH-kind shapes come out of it.
+                    fileShapes = fileShapes.stream().filter(s -> s.kind() == ShapeKind.TRUTH).toList();
+                }
+
+                shapes.addAll(fileShapes);
                 usages.addAll(facts.usages());
                 collectSuppressions(relative, source, suppressions);
                 filesScanned++;
@@ -120,8 +152,21 @@ public class Scanner {
     }
 
     private List<Path> walkDirectory(Path root) throws IOException {
+        // Sorted so first-path-wins duplicate dedupe is deterministic regardless of the
+        // filesystem's own (unspecified) directory-listing order.
         try (var paths = Files.walk(root)) {
-            return paths.filter(Files::isRegularFile).toList();
+            return paths.filter(Files::isRegularFile).sorted().toList();
+        }
+    }
+
+    private static String sha256(String source) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(source.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 is a required Java Security algorithm; every JVM provides it.
+            throw new IllegalStateException(e);
         }
     }
 
