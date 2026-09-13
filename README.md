@@ -130,19 +130,45 @@ intentionally omits it:
 ## Precision — where this stands today
 
 mirrorlint's receipts prove it finds real, specific bugs at the file-pair
-scale it was calibrated on. Repo-scale precision is still being hardened:
-scanning a full repository currently produces noisy DEFAULT findings, mostly
-from two sources — generated files (protocol definitions, other
-machine-written sources checked into the tree) and a small number of giant
-config types whose mirrors are large enough that the usage-co-occurrence
-check saturates and stops discriminating. Neither is fixed yet.
+scale it was calibrated on. **Repo-scale precision is 2.1%** — audited
+2026-09-13 against the current HEADs of ten real projects, 112 sampled
+DEFAULT findings read against the actual upstream code, 3 of them genuine.
 
-The project's target is a published false-positive rate against a
-methodology-defined audit sample; that number is **measurement in
-progress**, not yet published. Interactive-scale performance on very large
-repositories is also not yet tuned — the playwright receipt alone takes
-roughly a minute and a half. This section will be updated as that work
-lands; it is not being softened in the meantime.
+| repo | DEFAULT findings | audited | true | precision |
+|---|---|---|---|---|
+| [vitest-dev/vitest](https://github.com/vitest-dev/vitest) | 256 | 20 | 3 | 15% |
+| [microsoft/playwright](https://github.com/microsoft/playwright) | 14474 | 20 | 0 | 0% |
+| [nestjs/nest](https://github.com/nestjs/nest) | 148 | 20 | 0 | 0% |
+| [honojs/hono](https://github.com/honojs/hono) | 41 | 20 | 0 | 0% |
+| [fastify/fastify](https://github.com/fastify/fastify) | 7 | 7 | 0 | 0% |
+| [micrometer-metrics/micrometer](https://github.com/micrometer-metrics/micrometer) | 5 | 5 | 0 | 0% |
+| [prometheus/prometheus](https://github.com/prometheus/prometheus) | 672 | 20 | 0 | 0% |
+| spring-kafka · spring-integration · testcontainers-java | 0 | — | — | no findings |
+| **overall** (equal-weighted over the seven sampled repos) | | **112** | **3** | **2.1%** |
+
+The audit gate for a public launch is ≥90%, so **the gate is closed**. The
+number is published as measured rather than withheld until it improves.
+Sample selection, every per-finding verdict, the recall probe, and the ranked
+noise sources that feed the next iteration are in
+[receipts/audit/RESULTS.md](receipts/audit/RESULTS.md);
+`receipts/audit/run-audit.sh` reproduces the scan.
+
+The dominant noise source is not a threshold: 41% of the false positives are
+pairs of *compiler-checked* shapes — typed object literals, function-parameter
+types, arms of a discriminated union, optional properties left at their
+default. The compiler already keeps those in sync, so there is no
+hand-maintained copy to drift; the extractor does not yet encode that
+distinction. A further 32% are unrelated shapes that merely overlap, and 10%
+are generated or vendored files whose banners the generated-file detector
+does not match.
+
+A recall probe ran alongside the precision audit, since a precision-only
+measurement is blind to over-demotion: 38 INFO-demoted subset-pair omissions
+were audited across five repos and **none** was missed true drift, and
+playwright's `screen` receipt still fires at DEFAULT in a full-repo scan.
+Interactive-scale performance is no longer the concern it was — the full
+playwright monorepo now scans in about two minutes, the other nine repos in
+under ten seconds each.
 
 ## License
 
