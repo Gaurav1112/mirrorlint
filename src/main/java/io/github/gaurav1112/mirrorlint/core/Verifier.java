@@ -113,9 +113,11 @@ public class Verifier {
      * {@code PROJECT_CLI_OVERRIDES} and then writes
      * {@code maxWorkers: config.fileParallelism === false ? 1 : clonedConfig.maxWorkers} — the
      * curating module treating {@code maxWorkers} as a sibling of {@code fileParallelism}, which
-     * the allowlist lists. None of the other 40 omissions is handled that way anywhere in that
-     * file: they are consumed only by the rest of the codebase, which is exactly what an
-     * intentional omission looks like.
+     * the allowlist lists. Thirty-nine of the other 40 omissions are never handled that way in
+     * that file at all — they are consumed only by the rest of the codebase, which is exactly
+     * what an intentional omission looks like. The fortieth ({@code name}) is, and is separated
+     * instead by the raised score floor: it scores 0.688 against maxWorkers' 0.944, because
+     * {@code name} is used all over the tree in places that have nothing to do with the mirror.
      */
     private boolean curatorTreatsItAsAPeer(List<UsageSite> sites, Pair pair, Set<Integer> peerLines) {
         String home = pair.mirror().file();

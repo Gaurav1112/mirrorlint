@@ -84,10 +84,12 @@ statement as a member the mirror does list, and the member's score clears the
 raised `subset_min_score` floor. That is precisely the vitest bug's shape —
 `resolveProjects.ts` declares `PROJECT_CLI_OVERRIDES` and then writes
 `maxWorkers: config.fileParallelism === false ? 1 : clonedConfig.maxWorkers`,
-treating `maxWorkers` as a sibling of an option it did list. The other 40
-omissions (`hookTimeout` among them) are handled nowhere in that file, which
-is what an intentional omission looks like — so the pair now reports exactly
-one finding instead of 41.
+treating `maxWorkers` as a sibling of an option it did list. Thirty-nine of
+the other 40 omissions (`hookTimeout` among them) are never written that way
+in that file at all, which is what an intentional omission looks like; the
+fortieth, `name`, is separated by the score floor instead, since `name` is
+used all over the tree in places with nothing to do with the mirror. The pair
+now reports exactly one finding instead of 41.
 
 ## Config reference
 
