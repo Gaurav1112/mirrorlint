@@ -5,6 +5,7 @@ import io.github.gaurav1112.mirrorlint.core.Pair;
 import io.github.gaurav1112.mirrorlint.core.Severity;
 import io.github.gaurav1112.mirrorlint.core.UsageSite;
 import io.github.gaurav1112.mirrorlint.scan.ScanResult;
+import java.util.Locale;
 
 /**
  * Renders a {@link ScanResult} as evidence-first plain text for humans (spec §4):
@@ -41,7 +42,7 @@ public class HumanReporter {
         sb.append("  truth  ").append(pair.truth().file()).append(':').append(pair.truth().line())
             .append("  `").append(pair.truth().id()).append("` (")
             .append(pair.truth().members().size()).append(" members, jaccard ")
-            .append(String.format("%.2f", pair.jaccard())).append(")\n");
+            .append(String.format(Locale.ROOT, "%.2f", pair.jaccard())).append(")\n");
 
         if (!finding.evidence().isEmpty()) {
             sb.append("  evidence: consumed alongside mirror members in:\n");
