@@ -44,6 +44,30 @@ class VerifierTest {
     }
 
     @Test
+    void evidenceOnlyIncludesContributingSitesOtherSitesGetsTheRest() {
+        // hookTimeout is used once in runner.ts, a file that also uses mirror members
+        // (maxWorkers, tagsFilter) — that site contributes to the score's numerator. It's also
+        // used in core.ts, a file that touches no mirror member at all — that site never
+        // contributes to the numerator, so it must not be labeled "consumed alongside mirror
+        // members" even though it's still real evidence the omission is used somewhere.
+        var usages = List.of(u("runner.ts", "maxWorkers"), u("runner.ts", "tagsFilter"),
+                             at("runner.ts", 7, "hookTimeout"), at("core.ts", 1, "hookTimeout"));
+        var findings = new Verifier(0.5).verify(pair, new Differ().diff(pair), usages);
+        var hook = findings.stream().filter(f -> f.member().name().equals("hookTimeout")).findFirst().orElseThrow();
+
+        assertThat(hook.evidence()).containsExactly(at("runner.ts", 7, "hookTimeout"));
+        assertThat(hook.otherSites()).containsExactly(at("core.ts", 1, "hookTimeout"));
+    }
+
+    @Test
+    void surplusFindingHasEmptyEvidenceAndEmptyOtherSites() {
+        var findings = new Verifier(0.5).verify(pair, new Differ().diff(pair), List.of());
+        var surplus = findings.stream().filter(f -> f.member().name().equals("fileParallelism")).findFirst().orElseThrow();
+        assertThat(surplus.evidence()).isEmpty();
+        assertThat(surplus.otherSites()).isEmpty();
+    }
+
+    @Test
     void deterministicOrdering() {
         var usages = List.of(u("runner.ts", "maxWorkers"), u("runner.ts", "tagsFilter"), u("runner.ts", "hookTimeout"));
         var a = new Verifier(0.5).verify(pair, new Differ().diff(pair), usages);

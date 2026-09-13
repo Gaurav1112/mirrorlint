@@ -92,11 +92,22 @@ public class Verifier {
                 drift = score >= subsetMinScore && curatorTreatsItAsAPeer(sites, pair, peerLines);
             }
 
-            findings.add(new Finding(pair, omission, drift ? Severity.DEFAULT : Severity.INFO, true, sites));
+            // Evidence is honest only about the sites that actually earned the score: those in
+            // files that contributed to the numerator (mirrorFiles ∩ files(m)). Sites in files
+            // that never used a mirror member pulled no weight toward "consumed alongside mirror
+            // members" and are reported separately, not folded into the same claim.
+            List<UsageSite> evidence = new ArrayList<>();
+            List<UsageSite> otherSites = new ArrayList<>();
+            for (UsageSite site : sites) {
+                (mirrorFiles.contains(site.file()) ? evidence : otherSites).add(site);
+            }
+
+            findings.add(new Finding(pair, omission, drift ? Severity.DEFAULT : Severity.INFO, true,
+                evidence, otherSites));
         }
 
         for (Member surplus : diff.surplus()) {
-            findings.add(new Finding(pair, surplus, Severity.INFO, false, List.of()));
+            findings.add(new Finding(pair, surplus, Severity.INFO, false, List.of(), List.of()));
         }
 
         return findings.stream()

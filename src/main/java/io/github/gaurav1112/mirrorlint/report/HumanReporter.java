@@ -5,6 +5,7 @@ import io.github.gaurav1112.mirrorlint.core.Pair;
 import io.github.gaurav1112.mirrorlint.core.Severity;
 import io.github.gaurav1112.mirrorlint.core.UsageSite;
 import io.github.gaurav1112.mirrorlint.scan.ScanResult;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -46,12 +47,21 @@ public class HumanReporter {
 
         if (!finding.evidence().isEmpty()) {
             sb.append("  evidence: consumed alongside mirror members in:\n");
-            for (UsageSite site : finding.evidence()) {
-                sb.append("    ").append(site.file()).append(':').append(site.line())
-                    .append("  ").append(site.member()).append('\n');
-            }
+            appendSites(sb, finding.evidence());
+        }
+
+        if (!finding.otherSites().isEmpty()) {
+            sb.append("  also used in:\n");
+            appendSites(sb, finding.otherSites());
         }
 
         sb.append('\n');
+    }
+
+    private void appendSites(StringBuilder sb, List<UsageSite> sites) {
+        for (UsageSite site : sites) {
+            sb.append("    ").append(site.file()).append(':').append(site.line())
+                .append("  ").append(site.member()).append('\n');
+        }
     }
 }

@@ -25,9 +25,10 @@ class ReportersTest {
     private final Pair pair = new Pair(truth, mirror, 0.6);
 
     private final Finding hookTimeoutFinding = new Finding(pair, new Member("hookTimeout", "types.ts", 2),
-        Severity.DEFAULT, true, List.of(new UsageSite("runner.ts", 5, "hookTimeout")));
+        Severity.DEFAULT, true, List.of(new UsageSite("runner.ts", 5, "hookTimeout")),
+        List.of(new UsageSite("solo.ts", 9, "hookTimeout")));
     private final Finding teardownTimeoutFinding = new Finding(pair, new Member("teardownTimeout", "types.ts", 3),
-        Severity.INFO, true, List.of());
+        Severity.INFO, true, List.of(), List.of());
 
     private final ScanResult result = new ScanResult(List.of(hookTimeoutFinding, teardownTimeoutFinding), 2);
 
@@ -36,6 +37,24 @@ class ReportersTest {
         String rendered = new HumanReporter().render(result, false);
         assertThat(rendered).contains("missing `hookTimeout`");
         assertThat(rendered).contains("runner.ts:5");
+    }
+
+    @Test
+    void humanReportShowsOtherSitesAsAlsoUsedInWhenNonEmpty() {
+        String rendered = new HumanReporter().render(result, false);
+        assertThat(rendered).contains("evidence: consumed alongside mirror members in:");
+        assertThat(rendered).contains("runner.ts:5");
+        assertThat(rendered).contains("also used in:");
+        assertThat(rendered).contains("solo.ts:9");
+    }
+
+    @Test
+    void humanReportOmitsAlsoUsedInSectionWhenOtherSitesEmpty() {
+        Finding noOtherSites = new Finding(pair, new Member("hookTimeout", "types.ts", 2),
+            Severity.DEFAULT, true, List.of(new UsageSite("runner.ts", 5, "hookTimeout")), List.of());
+        ScanResult onlyThis = new ScanResult(List.of(noOtherSites), 1);
+        String rendered = new HumanReporter().render(onlyThis, false);
+        assertThat(rendered).doesNotContain("also used in:");
     }
 
     @Test
