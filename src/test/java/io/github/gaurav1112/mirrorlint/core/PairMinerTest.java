@@ -87,4 +87,72 @@ class PairMinerTest {
         assertThat(pairs).hasSize(1);
         assertThat(pairs.get(0).truth().id()).isEqualTo("BIG");
     }
+
+    /**
+     * 190 shapes in 19 member-disjoint clusters of 10 (each cluster draws overlapping subsets of
+     * its own 12-name pool, so twins and subset mirrors both occur within a cluster) plus 10
+     * shapes whose member names appear nowhere else in the corpus. The inverted index the indexed
+     * {@code mine()} builds must only ever compare shapes that share a member, so cross-cluster
+     * and disjoint shapes generate zero candidate pairs by construction — while {@code mineNaive}
+     * still walks every pair. This exercises both shapes: the mined pairs (does the index find the
+     * same real work) and the never-compared pairs (does the index correctly skip the fake work).
+     */
+    private List<Shape> mixedClusteredAndDisjointShapes() {
+        List<Shape> shapes = new java.util.ArrayList<>();
+        for (int c = 0; c < 19; c++) {
+            for (int s = 0; s < 10; s++) {
+                List<String> names = new java.util.ArrayList<>();
+                for (int m = 0; m < 12; m++) {
+                    if ((m + s) % 3 != 0) {
+                        names.add("c" + c + "_m" + m);
+                    }
+                }
+                ShapeKind kind = switch (s % 3) {
+                    case 0 -> ShapeKind.TRUTH;
+                    case 1 -> ShapeKind.LIST;
+                    default -> ShapeKind.LITERAL;
+                };
+                shapes.add(shape("c" + c + "_s" + s, kind, names.toArray(new String[0])));
+            }
+        }
+        for (int d = 0; d < 10; d++) {
+            shapes.add(shape("disjoint_" + d, ShapeKind.LIST,
+                    "solo_" + d + "_a", "solo_" + d + "_b", "solo_" + d + "_c", "solo_" + d + "_d"));
+        }
+        return shapes; // 19 * 10 + 10 = 200
+    }
+
+    @Test
+    void indexedMiningMatchesNaiveExactlyIncludingOrder() {
+        List<Shape> shapes = mixedClusteredAndDisjointShapes();
+        PairMiner miner = new PairMiner(0.6, 4);
+
+        List<Pair> indexed = miner.mine(shapes);
+        List<Pair> naive = miner.mineNaive(shapes);
+
+        assertThat(indexed).containsExactlyElementsOf(naive);
+    }
+
+    /**
+     * Smoke test, not a benchmark: 2000 shapes with mutually disjoint 3-member sets means the
+     * inverted index builds zero candidate pairs, so this should be near-instant. The naive O(n^2)
+     * walk would also comfortably clear this generous 5s bound locally (2000^2 / 2 is ~2M cheap
+     * comparisons), so passing this doesn't by itself prove the indexed path is faster — it only
+     * guards against the indexed path regressing into something pathologically slow, e.g. a hidden
+     * O(n^2) cost while building the index itself.
+     */
+    @Test
+    void twoThousandDisjointShapesMineWellUnderFiveSeconds() {
+        List<Shape> shapes = new java.util.ArrayList<>();
+        for (int i = 0; i < 2000; i++) {
+            shapes.add(shape("d" + i, ShapeKind.LIST, "d" + i + "_a", "d" + i + "_b", "d" + i + "_c"));
+        }
+
+        long startNanos = System.nanoTime();
+        List<Pair> pairs = new PairMiner(0.6, 4).mine(shapes);
+        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+
+        assertThat(pairs).isEmpty();
+        assertThat(elapsedMs).isLessThan(5000);
+    }
 }

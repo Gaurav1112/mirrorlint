@@ -3,7 +3,10 @@ package io.github.gaurav1112.mirrorlint.core;
 import io.github.gaurav1112.mirrorlint.config.Config;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -48,17 +51,72 @@ public class PairMiner {
         return minContainment;
     }
 
+    /**
+     * Indexed mining: a pair with zero shared members can never clear {@code minShared >= 1}
+     * ({@link SetOverlap} requires it for both the jaccard and subset rules), so the only pairs
+     * worth ever calling {@link #consider} on are ones that share at least one member. An inverted
+     * index (normalized member name → shape indices) turns "all shape pairs" into "shape pairs
+     * that co-occur in some member's bucket," which is the set {@link #mineNaive} would eventually
+     * reach anyway minus all the guaranteed-zero-overlap comparisons — same results, less work.
+     *
+     * <p>Candidate index pairs are deduplicated (a shape pair can share several members, i.e.
+     * appear in several buckets) and then walked in the same ascending (i, j) order the naive
+     * double loop uses, so {@link #consider} runs in an identical sequence and the trailing sort
+     * — whose comparator does not fully order every pair — resolves equal-key ties identically via
+     * stable-sort input order in both implementations.
+     */
     public List<Pair> mine(List<Shape> shapes) {
+        int n = shapes.size();
+        Map<String, List<Integer>> membersToShapes = new HashMap<>();
+        for (int i = 0; i < n; i++) {
+            for (String member : shapes.get(i).memberNames()) {
+                membersToShapes.computeIfAbsent(member, k -> new ArrayList<>()).add(i);
+            }
+        }
+
+        Set<Long> candidates = new HashSet<>();
+        for (List<Integer> bucket : membersToShapes.values()) {
+            for (int a = 0; a < bucket.size(); a++) {
+                for (int b = a + 1; b < bucket.size(); b++) {
+                    int i = bucket.get(a), j = bucket.get(b);
+                    if (i > j) { int t = i; i = j; j = t; }
+                    candidates.add(((long) i << 32) | (j & 0xFFFFFFFFL));
+                }
+            }
+        }
+        List<Long> ordered = new ArrayList<>(candidates);
+        ordered.sort(null); // ascending: (i << 32 | j) orders by i then j, matching the naive loop
+
+        List<Pair> out = new ArrayList<>();
+        for (long key : ordered) {
+            int i = (int) (key >> 32);
+            int j = (int) key;
+            consider(shapes.get(i), shapes.get(j), out);
+        }
+        sortPairs(out);
+        return out;
+    }
+
+    /**
+     * The pre-indexing implementation, kept for {@link PairMinerTest}'s equivalence check against
+     * {@link #mine}. O(n^2) over all shape pairs regardless of overlap — this is exactly the cost
+     * the inverted index in {@link #mine} exists to avoid.
+     */
+    List<Pair> mineNaive(List<Shape> shapes) {
         List<Pair> out = new ArrayList<>();
         for (int i = 0; i < shapes.size(); i++) {
             for (int j = i + 1; j < shapes.size(); j++) {
                 consider(shapes.get(i), shapes.get(j), out);
             }
         }
+        sortPairs(out);
+        return out;
+    }
+
+    private static void sortPairs(List<Pair> out) {
         out.sort(Comparator
             .comparing((Pair p) -> p.truth().file()).thenComparingInt(p -> p.truth().line())
             .thenComparing(p -> p.mirror().file()).thenComparingInt(p -> p.mirror().line()));
-        return out;
     }
 
     private void consider(Shape a, Shape b, List<Pair> out) {
