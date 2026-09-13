@@ -36,6 +36,11 @@ import org.junit.jupiter.api.TestFactory;
  *       (issue #42679, unfixed).
  * </ul>
  *
+ * <p>A receipt may also declare {@code expect_pair_defaults}, in which case rediscovery alone
+ * isn't enough: the pair that found the bug must emit exactly that many DEFAULT findings in
+ * total. vitest declares 1. Recovering the bug while also naming the forty members the allowlist
+ * omits on purpose is not a detection, it's a coin flip with good PR.
+ *
  * <p>The negative controls are the other half of the gate. Three vitest options that are consumed
  * only at root level must NOT be reported as drift in the very same scan: a tool that flags
  * everything rediscovers everything, which proves nothing.
@@ -116,6 +121,49 @@ class ReceiptsTest {
                 .describedAs("DEFAULT finding for '%s' whose mirror file contains '%s' in %s@%s",
                         member, mirrorContains, receipt.get("repo").getAsString(), shortSha(receipt))
                 .isNotEmpty();
+
+        if (receipt.has("expect_pair_defaults")) {
+            assertPairIsPrecise(receipt, findings, matches.get(0), member);
+        }
+    }
+
+    /**
+     * The precision half of the receipt: rediscovering the bug is worth nothing if the same pair
+     * also names every other member it omits. Counts the DEFAULT findings the <em>winning pair</em>
+     * emits — the pair is identified from the matched finding itself, so no extra manifest
+     * bookkeeping can drift out of sync — and demands the declared number, all naming the member.
+     */
+    private void assertPairIsPrecise(JsonObject receipt, JsonArray findings, JsonObject match, String member) {
+        int expected = receipt.get("expect_pair_defaults").getAsInt();
+        String pair = pairKey(match);
+
+        List<JsonObject> fromPair = findings.asList().stream()
+                .map(JsonElement::getAsJsonObject)
+                .filter(f -> "DEFAULT".equals(f.get("severity").getAsString()))
+                .filter(f -> pairKey(f).equals(pair))
+                .toList();
+
+        System.out.printf("receipts: winning pair %s — %d DEFAULT (expected %d)%n",
+                pair, fromPair.size(), expected);
+        fromPair.forEach(f -> System.out.println("          " + describe(f)));
+
+        assertThat(fromPair)
+                .describedAs("the winning pair %s in %s@%s must emit exactly %d DEFAULT finding(s); got %s",
+                        pair, receipt.get("repo").getAsString(), shortSha(receipt), expected,
+                        fromPair.stream().map(ReceiptsTest::memberName).toList())
+                .hasSize(expected);
+        assertThat(fromPair).extracting(ReceiptsTest::memberName).containsOnly(member.toLowerCase(Locale.ROOT));
+    }
+
+    private static String pairKey(JsonObject finding) {
+        JsonObject pair = finding.getAsJsonObject("pair");
+        return "%s[%s:%d] → %s[%s:%d]".formatted(
+                pair.getAsJsonObject("truth").get("id").getAsString(),
+                pair.getAsJsonObject("truth").get("file").getAsString(),
+                pair.getAsJsonObject("truth").get("line").getAsInt(),
+                pair.getAsJsonObject("mirror").get("id").getAsString(),
+                pair.getAsJsonObject("mirror").get("file").getAsString(),
+                pair.getAsJsonObject("mirror").get("line").getAsInt());
     }
 
     private void assertQuiet(JsonObject control, String member) throws Exception {

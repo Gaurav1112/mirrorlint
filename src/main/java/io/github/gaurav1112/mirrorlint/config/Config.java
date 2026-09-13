@@ -21,6 +21,8 @@ public record Config(
         double minScore,
         double minContainment,
         double minSubsetJaccard,
+        double subsetMinScore,
+        int subsetPeerWindow,
         List<String> excludes,
         List<DeclaredPair> declaredPairs) {
 
@@ -33,6 +35,23 @@ public record Config(
     public static final double DEFAULT_MIN_CONTAINMENT = 0.8;
     /** The lower jaccard floor a subset mirror must still clear. See {@code PairMiner}. */
     public static final double DEFAULT_MIN_SUBSET_JACCARD = 0.3;
+    /**
+     * The raised score floor a subset-mined pair's omission must clear. See {@code Verifier}.
+     *
+     * <p>Calibrated at the vitest receipt SHA: across the 41 omissions that the winning subset
+     * pair reported, the one real drift ({@code maxWorkers}) scores 0.944 and the best-scoring
+     * omission that also survives the peer test ({@code name}) scores 0.688 — so any floor in
+     * {@code (0.688, 0.944]} separates them. 0.8 is chosen for margin on both sides rather than
+     * hugging either number.
+     */
+    public static final double DEFAULT_SUBSET_MIN_SCORE = 0.8;
+    /**
+     * Lines of slack when looking for a mirror member used alongside the omission inside the
+     * mirror's own declaring file. 0 means the same statement. Widening it re-admits noise:
+     * measured on the receipts corpus, moving from 0 to 1 puts 2 more findings back into the
+     * vitest subset pairs and 10 back into playwright's.
+     */
+    public static final int DEFAULT_SUBSET_PEER_WINDOW = 0;
     public static final List<String> DEFAULT_EXCLUDES = List.of(
             "**/test/**", "**/tests/**", "**/__tests__/**", "**/node_modules/**",
             "**/target/**", "**/build/**", "**/dist/**", "**/*.spec.*", "**/*.test.*");
@@ -76,6 +95,10 @@ public record Config(
                     ? result.getDouble("min_containment") : DEFAULT_MIN_CONTAINMENT;
             double minSubsetJaccard = result.contains("min_subset_jaccard")
                     ? result.getDouble("min_subset_jaccard") : DEFAULT_MIN_SUBSET_JACCARD;
+            double subsetMinScore = result.contains("subset_min_score")
+                    ? result.getDouble("subset_min_score") : DEFAULT_SUBSET_MIN_SCORE;
+            int subsetPeerWindow = result.contains("subset_peer_window")
+                    ? result.getLong("subset_peer_window").intValue() : DEFAULT_SUBSET_PEER_WINDOW;
 
             List<String> excludes = new ArrayList<>(DEFAULT_EXCLUDES);
             TomlArray excludesArray = result.getArrayOrEmpty("excludes");
@@ -95,7 +118,7 @@ public record Config(
             }
 
             return new Config(minJaccard, minShared, minScore, minContainment, minSubsetJaccard,
-                    List.copyOf(excludes), List.copyOf(declaredPairs));
+                    subsetMinScore, subsetPeerWindow, List.copyOf(excludes), List.copyOf(declaredPairs));
         } catch (RuntimeException e) {
             // Catches org.tomlj.TomlInvalidTypeException (e.g. `min_jaccard = 1`, an integer
             // where a float is required) and any other value-extraction failure, so every
@@ -107,6 +130,7 @@ public record Config(
 
     private static Config defaults() {
         return new Config(DEFAULT_MIN_JACCARD, DEFAULT_MIN_SHARED, DEFAULT_MIN_SCORE,
-                DEFAULT_MIN_CONTAINMENT, DEFAULT_MIN_SUBSET_JACCARD, DEFAULT_EXCLUDES, List.of());
+                DEFAULT_MIN_CONTAINMENT, DEFAULT_MIN_SUBSET_JACCARD, DEFAULT_SUBSET_MIN_SCORE,
+                DEFAULT_SUBSET_PEER_WINDOW, DEFAULT_EXCLUDES, List.of());
     }
 }

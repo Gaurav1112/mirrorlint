@@ -61,7 +61,7 @@ public class Scanner {
         this(adapters,
             new PairMiner(config.minJaccard(), config.minShared(), config.minContainment(),
                 config.minSubsetJaccard()),
-            new Verifier(config.minScore()),
+            new Verifier(config.minScore(), config.subsetMinScore(), config.subsetPeerWindow()),
             config.excludes(),
             config.declaredPairs());
     }

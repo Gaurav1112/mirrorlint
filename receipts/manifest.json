@@ -8,6 +8,7 @@
       "subpath": "packages/vitest/src",
       "expect_member": "maxWorkers",
       "expect_mirror_contains": "resolveProjects",
+      "expect_pair_defaults": 1,
       "min_shared": 4
     },
     {

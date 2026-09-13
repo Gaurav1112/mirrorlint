@@ -68,12 +68,26 @@ Every omission is checked against usage: does that member show up, in real
 code, in files that also use members the mirror *does* carry? If so, the
 mirror's omission is silent drift, not a deliberate difference, and it's
 reported; if the member is never used alongside the mirror's own territory,
-it's left alone. The canonical example is `hookTimeout` versus
-`teardownTimeout` in vitest's project-override allowlist: `hookTimeout` is a
-legitimate per-project option that shows up used right next to the allowed
-options and is correctly flagged as a silent omission, while `teardownTimeout`
-is consumed only at the root level, never co-occurs with the allowed options,
-and is correctly left alone.
+it's left alone. `teardownTimeout` in vitest's project-override allowlist is
+the canonical quiet case: it's consumed only at the root level, never
+co-occurs with the allowed options, and is correctly left alone.
+
+Subset mirrors need a second, sharper gate, because symmetric usage proves
+nothing about a list that omits most of its truth *on purpose*. An allowlist
+drawn from a config type omits options the codebase naturally uses wherever it
+uses the allowed ones — at the vitest receipt SHA all 41 omissions of
+`PROJECT_CLI_OVERRIDES` scored ≥ 0.94, so that signal is saturated and useless
+there. What isn't saturated: the module that *declares* the curation is the
+authority on what belongs in it. So for a subset-mined pair an omission is
+drift only when the declaring file itself uses that member in the same
+statement as a member the mirror does list, and the member's score clears the
+raised `subset_min_score` floor. That is precisely the vitest bug's shape —
+`resolveProjects.ts` declares `PROJECT_CLI_OVERRIDES` and then writes
+`maxWorkers: config.fileParallelism === false ? 1 : clonedConfig.maxWorkers`,
+treating `maxWorkers` as a sibling of an option it did list. The other 40
+omissions (`hookTimeout` among them) are handled nowhere in that file, which
+is what an intentional omission looks like — so the pair now reports exactly
+one finding instead of 41.
 
 ## Config reference
 
@@ -85,6 +99,10 @@ min_shared = 4              # minimum shared members for a candidate pair
 min_score = 0.5             # verifier confidence floor for a DEFAULT finding
 min_containment = 0.8       # subset-mirror containment floor
 min_subset_jaccard = 0.3    # subset-mirror's own (lower) jaccard floor
+subset_min_score = 0.8      # raised score floor for a subset (allowlist) pair's omissions;
+                            #   clamped up to min_score — the subset gate only ever tightens
+subset_peer_window = 0      # lines of slack when looking for a mirror member used alongside
+                            #   the omission inside the mirror's declaring file (0 = same line)
 excludes = ["**/generated/**"]   # additive — appended to the built-in excludes, never replacing them
 
 [[pairs]]
